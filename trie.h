@@ -6,7 +6,7 @@ class Trie {
 public:
   class Iter {
   public:
-    Iter(Trie** nodes) : n(nodes), ix(-1) {}
+    Iter(Trie** nodes) : ix(-1), n(nodes) {}
     inline int getIx() const { return ix; }
     inline char getLetter() const { return (char)(ix + 'A'); }
     inline Trie* get() const { return n[ix]; }
@@ -30,7 +30,7 @@ public:
   bool has(const std::string& str) const;
   inline bool hasIx(int ix) const { return nodes[ix] != nullptr; }
   inline bool hasLetter(char c) const { return nodes[int(c - 'A')] != nullptr; }
-  inline Trie* decend(int ix) const { return nodes[ix]; }
+  inline Trie* descend(int ix) const { return nodes[ix]; }
 
   Iter iter() { return Iter(nodes); }
 

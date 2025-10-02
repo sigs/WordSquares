@@ -1,28 +1,29 @@
+/**
+ * Changes 2025-10-02: grab words from the frequency list directly
+ */
+
 #include "trie.h"
 #include <fstream>
 #include <iostream>
-#include <array>
 #include <unordered_set>
-#include <unordered_map>
 
-//Path to the dictionary file
-//Recommended source: https://raw.githubusercontent.com/andrewchen3019/wordle/refs/heads/main/Collins%20Scrabble%20Words%20(2019).txt
-#define DICTIONARY "../../dictionaries/scrabble_words.txt"
 //Path to the word frequency file
 //Recommended source: https://www.kaggle.com/datasets/wheelercode/dictionary-word-frequency
-#define FREQ_FILTER "../../dictionaries/ngram_freq_dict.csv"
+#define WORD_FREQUENCY_FILE "./ngram_freq_dict.csv"
 //Width of the word grid
 #define SIZE_W 5
 //Height of the word grid
 #define SIZE_H 5
 //Filter horizontal words to be in the top-N (or 0 for all words)
-#define MIN_FREQ_W 20000
+#define MIN_FREQ_W 1000000
 //Filter vertical words to be in the top-N (or 0 for all words)
-#define MIN_FREQ_H 20000
+#define MIN_FREQ_H 1000000
 //Only print solutions with all unique words (only for square grids)
 #define UNIQUE true
 //Diagonals must also be words (only for square grids)
 #define DIAGONALS false
+//Only print number of solutions, set false to actually print all of the solutions
+#define PRINT_NUM_SOLUTIONS true
 
 static const int VTRIE_SIZE = (DIAGONALS ? SIZE_W + 2 : SIZE_W);
 static const std::unordered_set<std::string> banned = {
@@ -30,44 +31,32 @@ static const std::unordered_set<std::string> banned = {
 };
 
 //Using global variables makes the recursive calls more compact
-std::unordered_map<std::string, uint32_t> g_freqs;
+// std::unordered_map<std::string, uint32_t> g_freqs;
 Trie g_trie_w;
 Trie g_trie_h;
 char g_words[SIZE_H * SIZE_W] = { 0 };
 
-//Dictionary should be list of words separated by newlines
-void LoadDictionary(const char* fname, int length, Trie& trie, int min_freq) {
-  std::cout << "Loading Dictionary " << fname << "..." << std::endl;
-  int num_words = 0;
-  std::ifstream fin(fname);
-  std::string line;
-  while (std::getline(fin, line)) {
-    if (line.size() != length) { continue; }
-    for (auto& c : line) c = toupper(c);
-    if (g_freqs.size() > 0 && min_freq > 0) {
-      const auto& freq = g_freqs.find(line);
-      if (freq == g_freqs.end() || freq->second > min_freq) { continue; }
-    }
-    if (banned.count(line) != 0) { continue; }
-    trie.add(line);
-    num_words += 1;
-  }
-  std::cout << "Loaded " << num_words << " words." << std::endl;
-}
+# ifdef PRINT_NUM_SOLUTIONS
+int g_num_solutions = 0;
+# endif
 
 //Frequency list is expecting a sorted 2-column CSV with header
 //First column is the word, second column is the frequency
-void LoadFreq(const char* fname) {
+void LoadFreq(const char* fname, int length, Trie& trie, long min_freq) {
   std::cout << "Loading Frequency List " << fname << "..." << std::endl;
   int num_words = 0;
   std::ifstream fin(fname);
   std::string line;
-  bool first = false;
+  std::getline(fin, line); // skip header
   while (std::getline(fin, line)) {
-    if (first) { first = false; continue; }
-    std::string str = line.substr(0, line.find_first_of(','));
-    for (auto& c : str) c = toupper(c);
-    g_freqs[str] = num_words;
+    // parse "word,count" + filter by length and frequency
+    std::string word = line.substr(0, line.find_first_of(','));
+    if (word.size() != length) { continue; }
+    long count = std::stol(line.substr(line.find_first_of(',') + 1));
+    if (count < min_freq) { continue; }
+
+    for (auto& c : word) c = toupper(c);
+    trie.add(word);
     num_words += 1;
   }
   std::cout << "Loaded " << num_words << " words." << std::endl;
@@ -107,7 +96,11 @@ void BoxSearch(Trie* trie, Trie* vtries[VTRIE_SIZE], int pos) {
   if (v_ix == 0) {
     //If the entire grid is filled, we're done, print the solution
     if (pos == SIZE_H * SIZE_W) {
+# ifdef PRINT_NUM_SOLUTIONS
+      g_num_solutions += 1;
+# else
       PrintBox(g_words);
+# endif
       return;
     }
     //Reset the horizontal trie position to the beginning
@@ -132,15 +125,15 @@ void BoxSearch(Trie* trie, Trie* vtries[VTRIE_SIZE], int pos) {
     //Make a backup of the vertical trie position in the stack for backtracking
     Trie* backup_vtrie = vtries[v_ix];
     //Update the vertical trie position
-    vtries[v_ix] = vtries[v_ix]->decend(iter.getIx());
+    vtries[v_ix] = vtries[v_ix]->descend(iter.getIx());
 #if DIAGONALS
     Trie* backup_dtrie1 = vtries[VTRIE_SIZE - 2];
     Trie* backup_dtrie2 = vtries[VTRIE_SIZE - 1];
     if (h_ix == v_ix) {
-      vtries[VTRIE_SIZE - 2] = vtries[VTRIE_SIZE - 2]->decend(iter.getIx());
+      vtries[VTRIE_SIZE - 2] = vtries[VTRIE_SIZE - 2]->descend(iter.getIx());
     }
     if (h_ix == SIZE_W - v_ix - 1) {
-      vtries[VTRIE_SIZE - 1] = vtries[VTRIE_SIZE - 1]->decend(iter.getIx());
+      vtries[VTRIE_SIZE - 1] = vtries[VTRIE_SIZE - 1]->descend(iter.getIx());
     }
 #endif
     //Make the recursive call
@@ -155,15 +148,12 @@ void BoxSearch(Trie* trie, Trie* vtries[VTRIE_SIZE], int pos) {
 }
 
 int main(int argc, char* argv[]) {
-  //Load word frequency list
-  LoadFreq(FREQ_FILTER);
-
   //Load horizontal trie from dictionary
-  LoadDictionary(DICTIONARY, SIZE_W, g_trie_w, MIN_FREQ_W);
+  LoadFreq(WORD_FREQUENCY_FILE, SIZE_W, g_trie_w, MIN_FREQ_W);
   Trie* trie_h = &g_trie_w;
   if (SIZE_W != SIZE_H) {
     //Load vertical trie from dictionary (if needed)
-    LoadDictionary(DICTIONARY, SIZE_H, g_trie_h, MIN_FREQ_H);
+    LoadFreq(WORD_FREQUENCY_FILE, SIZE_H, g_trie_h, MIN_FREQ_H);
     trie_h = &g_trie_h;
   }
 
@@ -173,6 +163,6 @@ int main(int argc, char* argv[]) {
 
   //Run the search
   BoxSearch(nullptr, vtries, 0);
-  std::cout << "Done." << std::endl;
+  std::cout << "Done. Found " << g_num_solutions << " solutions for " << SIZE_W << "x" << SIZE_H << " grid." << std::endl;
   return 0;
 }
