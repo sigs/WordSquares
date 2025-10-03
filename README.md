@@ -1,15 +1,17 @@
 # WordSquares
+
 A simple C++ solver for dense word grids.
 
 See this [YouTube Video](https://youtu.be/zWIsnrxL-Zc) for the best explanation.
 
-**NOTE:** This repository is not actively maintained and is for reference only.
+## Tweakables
 
-## Usage
-To use this solver, you'll need a list of valid words and a word frequency list. If you'd like to use the same files as shown in the video, download links are provided below.
+In `main.cpp`, you can tweak the following parameters:
 
-[Scrabble Words List](https://raw.githubusercontent.com/andrewchen3019/wordle/refs/heads/main/Collins%20Scrabble%20Words%20(2019).txt)
+- `PRINT_NUM_SOLUTIONS`: Whether to only print the number of solutions, set false to actually print all of the solutions.
+- `WORD_FREQUENCY_FILE`: The path to the word frequency file.
+- `SIZE_W`: The width of the word grid.
+- `SIZE_H`: The height of the word grid.
+- `DIAGONALS`: Whether to include diagonals in the word grid.
 
-[NGram Viewer Frequencies](https://www.kaggle.com/datasets/wheelercode/dictionary-word-frequency)
-
-You'll need to update the `DICTIONARY` and `FREQ_FILTER` paths to reference these files. These and other parameters are found on the top of `main.cpp`. Modify these to try different kinds of word grids. Basic documentation is provided in this file.
+See main.cpp for more details.
